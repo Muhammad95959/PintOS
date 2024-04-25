@@ -1,8 +1,8 @@
 #ifndef FIXED_POINT_H
 #define FIXED_POINT_H
 
-#define P 17;
-#define Q 14;
+#define P 17
+#define Q 14
 #define F (1 << (Q))
 
 #define CONVERT_N_TO_FIXED_POINT(n) (((n) * (F)))
