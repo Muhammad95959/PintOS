@@ -382,7 +382,15 @@ thread_get_recent_cpu (void)
 
 void
 mlfqs_calc_priority(struct thread *t) {
-
+  int pri_max_fp = CONVERT_N_TO_FIXED_POINT(PRI_MAX);
+  int nice_fp = CONVERT_N_TO_FIXED_POINT(t->nice);
+  t->priority = CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(FIXED_POINT_SUB(
+      FIXED_POINT_SUB(pri_max_fp, DIV_FP_BY_INT(t->recent_cpu, 4)),
+      MUL_FP_BY_INT(nice_fp, 2)));
+  if (t->priority < PRI_MIN)
+    t->priority = PRI_MIN;
+  else if (t->priority > PRI_MAX)
+    t->priority = PRI_MAX;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
