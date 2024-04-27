@@ -377,14 +377,16 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(MUL_FP_BY_INT(load_avg, TIMER_FREQ)) ;
+  return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(
+      MUL_FP_BY_INT(load_avg, TIMER_FREQ));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(MUL_FP_BY_INT(thread_current ()->recent_cpu, TIMER_FREQ)) ;
+  return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(
+      MUL_FP_BY_INT(thread_current()->recent_cpu, TIMER_FREQ));
 }
 
 void mlfqs_calc_priority(struct thread *t) {
@@ -400,7 +402,13 @@ void mlfqs_calc_priority(struct thread *t) {
     t->priority = PRI_MAX;
 }
 
+void mlfqs_calc_load_avg(void) {
 
+}
+
+void mlfqs_calc_recent_cpu(void) {
+
+}
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
