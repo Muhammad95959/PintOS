@@ -258,7 +258,7 @@ thread_name (void)
 }
 
 bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-		return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+	return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
 }
 
 /* Returns the running thread.
