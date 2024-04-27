@@ -202,7 +202,9 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  if (thread_current()->priority < priority){
+    thread_yield(); 
+  }
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -243,6 +245,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
+  //list_insert_ordered()
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
