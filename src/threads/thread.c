@@ -257,6 +257,10 @@ thread_name (void)
   return thread_current ()->name;
 }
 
+bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+		return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+}
+
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
