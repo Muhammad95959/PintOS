@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include "list.h"
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -484,7 +485,19 @@ void mlfqs_calc_load_avg(void) {
 }
 
 void mlfqs_calc_recent_cpu(void) {
-
+  struct thread *t;
+  struct list_elem  *elem;
+  for (elem = list_begin(&all_list); elem != list_end(&all_list); elem = list_next(elem)) {
+    t = list_entry(elem, struct thread, allelem);
+    if (t != idle_thread) {
+      int step1 = MUL_FP_BY_INT(load_avg, 2);
+      int step2 = FIXED_POINT_ADD(step1, CONVERT_N_TO_FIXED_POINT(1));
+      int step3 = FIXED_POINT_DIV(step1, step2);
+      int nice_fp = CONVERT_N_TO_FIXED_POINT(t->nice);
+      t->recent_cpu = FIXED_POINT_ADD(MUL_FP_BY_INT(step3, t->recent_cpu), nice_fp);
+      mlfqs_calc_priority(t);
+    }
+  }
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
