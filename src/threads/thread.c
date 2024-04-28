@@ -276,7 +276,7 @@ void thread_update_priority(struct thread *t)
       max_pri = lock_pri;
     }
   }
-  t->priority = max_pri;
+  //t->priority = max_pri;
 
   intr_set_level(old_level);
 }
