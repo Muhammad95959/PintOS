@@ -96,6 +96,8 @@ struct thread
     int base_priority;
     struct list locks_holder;
     struct lock *lock_waiter;
+    int64_t ticks_blocked;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
