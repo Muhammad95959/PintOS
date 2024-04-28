@@ -257,8 +257,62 @@ thread_name (void)
   return thread_current ()->name;
 }
 
+//functions priority abdo w 7oda
 bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
 	return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+}
+
+void thread_update_priority(struct thread *t)
+{
+  enum intr_level old_level = intr_disable();
+  int max_pri = t->base_priority;
+  int lock_pri;
+
+  /* If the thread is holding locks, pick the one with the highest max_priority.
+   * And if this priority is greater than the original base priority,
+   * the real(donated) priority would be updated.*/
+  if (!list_empty(&t->locks_holder)){
+    list_sort(&t->locks_holder, cmp_lock_priority, NULL);
+	  lock_pri = list_entry(list_front(&t->locks_holding), struct lock, elem)->max_lock_priority;
+    if (max_pri < lock_pri){
+      max_pri = lock_pri;
+    }
+  }
+  t->priority = max_pri;
+
+  intr_set_level(old_level);
+}
+
+void thread_priority_donation(struct thread *t){
+  enum intr_level old_level = intr_disable();
+  thread_update_priority(t);
+ 
+  /* Remove the old t and insert the new one in order */ 
+  if (t->status == THREAD_READY){
+    list_remove(&t->elem);
+	  list_insert_ordered(&ready_list, &t->elem, cmp_thread_priority, NULL);
+  }
+
+  //intr_set_level(old_level);
+}
+
+bool cmp_lock_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+  return list_entry(a, struct lock, elem)->max_lock_priority > list_entry(b, struct lock, elem)->max_lock_priority;
+}
+
+void thread_hold_lock(struct lock *lock){
+  enum intr_level old_level = intr_disable(); //disable interrupts
+  struct thread *cur = thread_current();
+  list_insert_ordered(&cur->locks_holder, &lock->elem, cmp_lock_priority, NULL);
+
+  /* Donate the lock's priority */
+  if (cur->priority < lock->max_lock_priority)
+  {
+    cur->priority = lock->max_lock_priority;
+	  thread_yield();
+  }
+
+  intr_set_level(old_level);
 }
 
 /* Returns the running thread.

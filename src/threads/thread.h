@@ -92,6 +92,10 @@ struct thread
     int nice;
     int recent_cpu;
 
+    //Priority donation and locks
+    int base_priority;
+    struct list locks_holder;
+    struct lock *lock_waiter;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -123,6 +127,11 @@ void thread_unblock (struct thread *);
 
 //functions bta3t abdo w 7oda (priority)
 bool cmp_thread_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_lock_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+void thread_update_priority(struct thread *t);
+void thread_priority_donation(struct thread *t);
+void thread_hold_lock(struct lock *lock);
+void thread_release_lock(struct lock *lock);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);
