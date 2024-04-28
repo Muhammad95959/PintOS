@@ -601,8 +601,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->nice = 0;
   t->recent_cpu = 0;
 
-  t->base_priority = priority;
   list_init(&t->locks_holder);
+  t->base_priority = priority;
   t->lock_waiter = NULL;
 
   old_level = intr_disable ();
