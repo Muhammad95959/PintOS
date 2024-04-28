@@ -500,6 +500,11 @@ void mlfqs_calc_recent_cpu(void) {
   }
 }
 
+void mlfqs_inc_recent_cpu(void) {
+  if (thread_current() != idle_thread)
+    thread_current()->recent_cpu = FIXED_POINT_ADD(thread_current()->recent_cpu, CONVERT_N_TO_FIXED_POINT(1));
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
