@@ -502,7 +502,6 @@ void mlfqs_calc_recent_cpu(void) {
       int step3 = FIXED_POINT_DIV(step1, step2);
       int nice_fp = CONVERT_N_TO_FIXED_POINT(t->nice);
       t->recent_cpu = FIXED_POINT_ADD(MUL_FP_BY_INT(step3, t->recent_cpu), nice_fp);
-      mlfqs_calc_priority(t);
     }
   }
 }

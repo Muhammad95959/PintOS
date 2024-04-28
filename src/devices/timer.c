@@ -177,6 +177,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     if (ticks % TIMER_FREQ == 0) {
       mlfqs_calc_load_avg();
       mlfqs_inc_recent_cpu();
+      mlfqs_calc_priority(thread_current());
     } else if (ticks % 4 == 0) {
       mlfqs_calc_priority(thread_current());
     }
