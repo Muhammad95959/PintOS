@@ -75,6 +75,7 @@ static tid_t allocate_tid (void);
 
 int load_avg;
 
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -185,8 +186,12 @@ thread_create (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
+  
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  t->ticks_blocked = 0;
+
+
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -202,11 +207,12 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+  /* Add to run queue. */
+  thread_unblock (t);
   if (thread_current()->priority < priority){
     thread_yield(); 
   }
-  /* Add to run queue. */
-  thread_unblock (t);
+  
 
   return tid;
 }
@@ -276,7 +282,7 @@ void thread_update_priority(struct thread *t)
       max_pri = lock_pri;
     }
   }
-  //t->priority = max_pri;
+  t->priority = max_pri;
 
   intr_set_level(old_level);
 }
@@ -409,18 +415,19 @@ void
 thread_set_priority (int new_priority) 
 {
   //if (!thread_mlfqs) thread_current ()->priority = new_priority;
-  if (thread_mlfqs)
-    return;
-  enum intr_level old_level = intr_disable();
-  struct thread *cur = thread_current();
-  int old_priority = cur->priority;
-  cur->base_priority = new_priority;
-
-  if (list_empty(&cur->locks_holder) || new_priority > old_priority){
-    cur->priority = new_priority;
-	  thread_yield();
+  if (!thread_mlfqs){
+    enum intr_level old_level = intr_disable();
+    struct thread *cur = thread_current();
+    int old_priority = cur->priority;
+    cur->base_priority = new_priority;
+  
+    if (list_empty(&cur->locks_holder) || new_priority > old_priority){
+      cur->priority = new_priority;
+	    thread_yield();
+    }
+    intr_set_level(old_level);
   }
-  intr_set_level(old_level);
+    //return;
 }
 
 /* Returns the current thread's priority. */
