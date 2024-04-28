@@ -476,7 +476,11 @@ void mlfqs_calc_priority(struct thread *t) {
 }
 
 void mlfqs_calc_load_avg(void) {
-
+  int ready_threads = list_size(&ready_list);
+  if (thread_current() != idle_thread) ready_threads++;
+  int ready_threads_fp = CONVERT_N_TO_FIXED_POINT(ready_threads);
+  load_avg = FIXED_POINT_ADD(DIV_FP_BY_INT(MUL_FP_BY_INT(load_avg, 59), 60),
+                             DIV_FP_BY_INT(ready_threads_fp, 60));
 }
 
 void mlfqs_calc_recent_cpu(void) {
