@@ -268,12 +268,10 @@ void thread_update_priority(struct thread *t)
   int max_pri = t->base_priority;
   int lock_pri;
 
-  /* If the thread is holding locks, pick the one with the highest max_priority.
-   * And if this priority is greater than the original base priority,
-   * the real(donated) priority would be updated.*/
+  //update priority
   if (!list_empty(&t->locks_holder)){
     list_sort(&t->locks_holder, cmp_lock_priority, NULL);
-	  lock_pri = list_entry(list_front(&t->locks_holding), struct lock, elem)->max_lock_priority;
+	  lock_pri = list_entry(list_front(&t->locks_holder), struct lock, elem)->max_lock_priority;
     if (max_pri < lock_pri){
       max_pri = lock_pri;
     }
@@ -311,6 +309,14 @@ void thread_hold_lock(struct lock *lock){
     cur->priority = lock->max_lock_priority;
 	  thread_yield();
   }
+
+  intr_set_level(old_level);
+}
+
+void thread_release_lock(struct lock *lock){
+  enum intr_level old_level = intr_disable();
+  list_remove(&lock->elem);
+  thread_update_priority(thread_current());
 
   intr_set_level(old_level);
 }
@@ -402,7 +408,19 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  if (!thread_mlfqs) thread_current ()->priority = new_priority;
+  //if (!thread_mlfqs) thread_current ()->priority = new_priority;
+  if (thread_mlfqs)
+    return;
+  enum intr_level old_level = intr_disable();
+  struct thread *cur = thread_current();
+  int old_priority = cur->priority;
+  cur->base_priority = new_priority;
+
+  if (list_empty(&cur->locks_holder) || new_priority > old_priority){
+    cur->priority = new_priority;
+	  thread_yield();
+  }
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -554,6 +572,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   t->nice = 0;
   t->recent_cpu = 0;
+
+  t->base_priority = priority;
+  list_init(&t->locks_holder);
+  t->lock_waiter = NULL;
 
   old_level = intr_disable ();
   //list_push_back (&all_list, &t->allelem);

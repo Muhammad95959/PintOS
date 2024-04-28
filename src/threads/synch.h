@@ -44,7 +44,7 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-bool cond_cmp_priority(const struct list_elem *, const struct list_elem *, void * UNUSED);
+bool cmp_cond_priority(const struct list_elem *, const struct list_elem *, void * UNUSED);
 
 /* Optimization barrier.
 
