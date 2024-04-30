@@ -178,6 +178,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
+  enum intr_level old_level;
 
   ASSERT (function != NULL);
 
@@ -193,7 +194,7 @@ thread_create (const char *name, int priority,
   t->ticks_blocked = 0;
 
 
-
+old_level = intr_disable ();
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -208,6 +209,7 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
+   intr_set_level (old_level);
   /* Add to run queue. */
   thread_unblock (t);
   if (thread_current()->priority < priority){
@@ -724,3 +726,9 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+/*function acts as a  comparator to help sort the list of blocked threads*/
+bool minimum(const struct list_elem * a,const struct list_elem * b,void *aux){
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  return thread_a->wake_up < thread_b->wake_up;
+}

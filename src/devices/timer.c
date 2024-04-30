@@ -16,7 +16,8 @@
 #if TIMER_FREQ > 1000
 #error TIMER_FREQ <= 1000 recommended
 #endif
-
+/*list of the blocked threads*/
+static struct list blocked_threads;
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
@@ -35,6 +36,7 @@ static void real_time_delay (int64_t num, int32_t denom);
 void
 timer_init (void) 
 {
+  list_init(&blocked_threads);
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
@@ -88,12 +90,26 @@ timer_elapsed (int64_t then)
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
-{
-  int64_t start = timer_ticks ();
-
+ {
+    if (ticks <= 0)
+      return;
+   struct  thread *t =thread_current();
+  
+   t->wake_up=timer_ticks () + ticks;
+    // int64_t start = timer_ticks ();
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  // //busy wait
+  //  while (timer_elapsed (start) < ticks) 
+  //   thread_yield ();
+  
+   enum intr_level old_level = intr_disable (); //disable intterubt
+   //insert the thread in the blocked list and sort the list with the help of minimum function which act as a comparator
+     list_push_back (&blocked_threads,&t->elem);
+     list_sort(&blocked_threads, minimum, NULL);
+
+   thread_block ();
+   intr_set_level (old_level); 
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,6 +188,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
   if (thread_mlfqs) {
     mlfqs_inc_recent_cpu();
     if (ticks % TIMER_FREQ == 0) {
@@ -182,6 +199,21 @@ timer_interrupt (struct intr_frame *args UNUSED)
       mlfqs_calc_priority(thread_current());
     }
   }
+        while (!list_empty(&blocked_threads)) {
+        // Get the first thread from the blocked list
+        
+        struct thread *t = list_entry(list_front(&blocked_threads), struct thread, elem);
+        
+        
+        if (timer_ticks() >= t->wake_up) {
+            //list_less_func If so, remove the thread from the blocked list
+            list_pop_front(&blocked_threads);
+            // Unblock the thread
+            thread_unblock(t);
+        } else {
+            break;
+        }
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

@@ -91,7 +91,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
     int nice;
     int recent_cpu;
-
+    int wake_up;  // for timer
     //Priority donation and locks
     int base_priority;
     struct list locks_holder;
@@ -158,5 +158,5 @@ void mlfqs_calc_priority (struct thread *t);
 void mlfqs_calc_load_avg (void);
 void mlfqs_calc_recent_cpu (void);
 void mlfqs_inc_recent_cpu (void);
-
+bool minimum(const struct list_elem * a,const struct list_elem * b,void *aux);
 #endif /* threads/thread.h */
