@@ -95,7 +95,7 @@ handle_error (ssize_t retval, int *fd, bool fd_is_sock, const char *call)
         }
     }
   else
-    fail_io ("%s",call); 
+    fail_io (call); 
 }
 
 /* Copies data from stdin to SOCK and from SOCK to stdout until no

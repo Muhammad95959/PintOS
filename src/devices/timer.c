@@ -183,37 +183,32 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
-static void
-timer_interrupt (struct intr_frame *args UNUSED)
-{
+static void timer_interrupt(struct intr_frame *args UNUSED) {
   ticks++;
-  thread_tick ();
+  thread_tick();
 
   if (thread_mlfqs) {
     mlfqs_inc_recent_cpu();
-    if (ticks % TIMER_FREQ == 0) {
-      mlfqs_calc_load_avg();
-      mlfqs_inc_recent_cpu();
+    if (ticks % TIMER_FREQ == 0)
+      mlfqs_calc_recent_cpu();
+    else if (ticks % 4 == 0)
       mlfqs_calc_priority(thread_current());
-    } else if (ticks % 4 == 0) {
-      mlfqs_calc_priority(thread_current());
+  }
+  while (!list_empty(&blocked_threads)) {
+    // Get the first thread from the blocked list
+
+    struct thread *t =
+        list_entry(list_front(&blocked_threads), struct thread, elem);
+
+    if (timer_ticks() >= t->wake_up) {
+      // list_less_func If so, remove the thread from the blocked list
+      list_pop_front(&blocked_threads);
+      // Unblock the thread
+      thread_unblock(t);
+    } else {
+      break;
     }
   }
-        while (!list_empty(&blocked_threads)) {
-        // Get the first thread from the blocked list
-        
-        struct thread *t = list_entry(list_front(&blocked_threads), struct thread, elem);
-        
-        
-        if (timer_ticks() >= t->wake_up) {
-            //list_less_func If so, remove the thread from the blocked list
-            list_pop_front(&blocked_threads);
-            // Unblock the thread
-            thread_unblock(t);
-        } else {
-            break;
-        }
-    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

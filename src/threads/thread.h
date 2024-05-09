@@ -154,9 +154,9 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-void mlfqs_calc_priority (struct thread *t);
-void mlfqs_calc_load_avg (void);
-void mlfqs_calc_recent_cpu (void);
-void mlfqs_inc_recent_cpu (void);
+void mlfqs_inc_recent_cpu(void);
+void mlfqs_calc_recent_cpu(void);
+void mlfqs_calc_priority(struct thread *t);
+
 bool minimum(const struct list_elem * a,const struct list_elem * b,void *aux);
 #endif /* threads/thread.h */

@@ -1,18 +1,16 @@
-#include "threads/thread.h"
+#include "thread.h"
 #include <debug.h>
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include "fixed-point.h"
 #include "list.h"
-#include "threads/flags.h"
 #include "threads/interrupt.h"
-#include "threads/intr-stubs.h"
 #include "threads/palloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "threads/fixed-point.h"
 #include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -76,7 +74,6 @@ static tid_t allocate_tid (void);
 
 int load_avg;
 
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -116,6 +113,8 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
+
+  load_avg = 0;
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -441,76 +440,69 @@ thread_get_priority (void)
 }
 
 /* Sets the current thread's nice value to NICE. */
-void
-thread_set_nice (int nice UNUSED) 
-{
-  thread_current ()->nice = nice;
+void thread_set_nice(int nice UNUSED) {
+  thread_current()->nice = nice;
   mlfqs_calc_priority(thread_current());
   thread_yield();
 }
 
 /* Returns the current thread's nice value. */
-int
-thread_get_nice (void) 
-{
-  return thread_current ()->nice;
-}
+int thread_get_nice(void) { return thread_current()->nice; }
 
 /* Returns 100 times the system load average. */
-int
-thread_get_load_avg (void) 
-{
+int thread_get_load_avg(void) {
   return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(
       MUL_FP_BY_INT(load_avg, TIMER_FREQ));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
-int
-thread_get_recent_cpu (void) 
-{
+int thread_get_recent_cpu(void) {
   return CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(
       MUL_FP_BY_INT(thread_current()->recent_cpu, TIMER_FREQ));
 }
 
 void mlfqs_calc_priority(struct thread *t) {
-  int pri_max_fp = CONVERT_N_TO_FIXED_POINT(PRI_MAX);
-  int recent_cpu_fp = CONVERT_N_TO_FIXED_POINT(t->recent_cpu);
-  int nice_fp = CONVERT_N_TO_FIXED_POINT(t->nice);
-  t->priority = CONVERT_X_TO_INTEGER_ROUNDING_TO_NEAREST(FIXED_POINT_SUB(
-      FIXED_POINT_SUB(pri_max_fp, DIV_FP_BY_INT(recent_cpu_fp, 4)),
-      MUL_FP_BY_INT(nice_fp, 2)));
-  if (t->priority < PRI_MIN)
-    t->priority = PRI_MIN;
-  else if (t->priority > PRI_MAX)
-    t->priority = PRI_MAX;
+  if (t != idle_thread) {
+    t->priority = CONVERT_X_TO_INTEGER_ROUNDING_TOWARD_ZERO(
+        SUB_INT_FROM_FP(FIXED_POINT_SUB(CONVERT_N_TO_FIXED_POINT(PRI_MAX),
+                                        DIV_FP_BY_INT(t->recent_cpu, 4)),
+                        2 * t->nice));
+    if (t->priority < PRI_MIN)
+      t->priority = PRI_MIN;
+    else if (t->priority > PRI_MAX)
+      t->priority = PRI_MAX;
+  }
 }
 
-void mlfqs_calc_load_avg(void) {
-  int ready_threads = list_size(&ready_list);
-  if (thread_current() != idle_thread) ready_threads++;
-  int ready_threads_fp = CONVERT_N_TO_FIXED_POINT(ready_threads);
-  load_avg = FIXED_POINT_ADD(DIV_FP_BY_INT(MUL_FP_BY_INT(load_avg, 59), 60),
-                             DIV_FP_BY_INT(ready_threads_fp, 60));
-}
-
+/* Update load_avg and recent_cpu of all threads every TIMER_FREQ ticks. */
 void mlfqs_calc_recent_cpu(void) {
+  size_t ready_threads = list_size(&ready_list);
+  if (thread_current() != idle_thread)
+    ++ready_threads;
+  load_avg =
+      FIXED_POINT_ADD(DIV_FP_BY_INT(MUL_FP_BY_INT(load_avg, 59), 60),
+                      DIV_FP_BY_INT(CONVERT_N_TO_FIXED_POINT(ready_threads), 60));
   struct thread *t;
-  struct list_elem  *elem;
+  struct list_elem *elem;
   for (elem = list_begin(&all_list); elem != list_end(&all_list); elem = list_next(elem)) {
     t = list_entry(elem, struct thread, allelem);
     if (t != idle_thread) {
-      int step1 = MUL_FP_BY_INT(load_avg, 2);
-      int step2 = FIXED_POINT_ADD(step1, CONVERT_N_TO_FIXED_POINT(1));
-      int step3 = FIXED_POINT_DIV(step1, step2);
-      int nice_fp = CONVERT_N_TO_FIXED_POINT(t->nice);
-      t->recent_cpu = FIXED_POINT_ADD(MUL_FP_BY_INT(step3, t->recent_cpu), nice_fp);
+      t->recent_cpu = ADD_INT_TO_FP(
+          FIXED_POINT_MUL(
+              FIXED_POINT_DIV(MUL_FP_BY_INT(load_avg, 2),
+                              ADD_INT_TO_FP(MUL_FP_BY_INT(load_avg, 2), 1)),
+              t->recent_cpu),
+          t->nice);
+      mlfqs_calc_priority(t);
     }
   }
 }
 
 void mlfqs_inc_recent_cpu(void) {
-  if (thread_current() != idle_thread)
-    thread_current()->recent_cpu = FIXED_POINT_ADD(thread_current()->recent_cpu, CONVERT_N_TO_FIXED_POINT(1));
+  struct thread *cur = thread_current();
+  if (cur == idle_thread)
+    return;
+  cur->recent_cpu = ADD_INT_TO_FP(cur->recent_cpu, 1);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
