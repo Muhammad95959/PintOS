@@ -27,11 +27,55 @@ syscall_handler (struct intr_frame *f UNUSED)
       shutdown_power_off();
       break;
     case SYS_EXIT:
-
+      int status = *((int*)f->esp + 1); 
+      printf("%s: exit(%d)\n", thread_current()->name, status);
       break;
     case SYS_EXEC:
       //strat
       break;
+    case SYS_WAIT:
+    //wait bta3 7oda
+    break;
+
+  case SYS_CREATE:
+    //create_wrapper(f);
+    break;
+
+  case SYS_REMOVE:
+    //remove_wrapper(f);
+    break;
+
+  case SYS_OPEN:
+    //open_wrapper(f);
+    break;
+
+  case SYS_FILESIZE:
+    //filesize_wrapper(f);
+    break;
+
+  case SYS_READ:
+    //read_wrapper(f);
+    break;
+
+  case SYS_WRITE:
+    //write_wrapper(f);
+    break;
+
+  case SYS_SEEK:
+    //seek_wrapper(f);
+    break;
+
+  case SYS_TELL:
+    //tell_wrapper(f);
+    break;
+
+  case SYS_CLOSE:
+    //close_wrapper(f);
+    break;
+
+  default:
+    // negative area
+    break;
 
   }
   
