@@ -3,10 +3,11 @@
 
 void syscall_init (void);
 
-void system_exit(int status);//exit thread
-void validate_ptr(const void* f); //validate ptr and exit if not valid
+/* check if the pointer is valid */
+void validate_ptr(const void* pt);
 
-struct open_file* get_file(int fd);
+void system_exit(int status);
+
 
 
 #endif /* userprog/syscall.h */
