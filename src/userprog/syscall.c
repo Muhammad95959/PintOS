@@ -33,6 +33,15 @@ syscall_init (void)
   lock_init(&files_sys_lock);
 }
 
+void 
+validate_ptr(const void* f)
+{
+  if (f == NULL|| !is_user_vaddr(f) || pagedir_get_page(thread_current()->pagedir, f) == NULL) 
+  {
+    system_exit(-1);
+  }
+}
+
 static void
 syscall_handler (struct intr_frame *f) 
 { 
@@ -97,15 +106,6 @@ syscall_handler (struct intr_frame *f)
     break;
   }
 
-}
-
-void 
-validate_ptr(const void* pt)
-{
-  if (pt == NULL || !is_user_vaddr(pt) || pagedir_get_page(thread_current()->pagedir, pt) == NULL) 
-  {
-    system_exit(-1);
-  }
 }
 
 void
@@ -182,9 +182,9 @@ open_sys_call(struct intr_frame *f)
   {
     return -1;
   }
-  open->fd = ++thread_current()->fd_last;
-  list_push_back(&thread_current()->open_file_list,&open->elem);
-  return open->fd;
+  open->file_desc = ++thread_current()->fd_last;
+  list_push_back(&thread_current()->opened_files_list,&open->elem);
+  return open->file_desc;
 
 }
 
@@ -346,11 +346,11 @@ close_sys_call(struct intr_frame *f)
 struct open_file* get_file(int fd){
     struct thread* t = thread_current();
     struct file* my_file = NULL;
-    for (struct list_elem* e = list_begin (&t->open_file_list); e != list_end (&t->open_file_list);
+    for (struct list_elem* e = list_begin (&t->opened_files_list); e != list_end (&t->opened_files_list);
     e = list_next (e))
     {
       struct open_file* opened_file = list_entry (e, struct open_file, elem);
-      if (opened_file->fd == fd)
+      if (opened_file->file_desc == fd)
       {
         return opened_file;
       }
