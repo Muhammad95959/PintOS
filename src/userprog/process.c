@@ -206,6 +206,45 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
 
+void separate_strings(char *file_name, void **esp) {
+  char *token = file_name;
+  char *next;
+  int argc = 0;
+  int arg_address[24];
+
+  for (token = strtok_r(file_name, " ", &next); token != NULL;
+       token = strtok_r(NULL, " ", &next)) {
+    *esp -= (strlen(token) + 1);
+    memcpy(*esp, token, strlen(token) + 1);
+    arg_address[argc++] = (int) *esp;
+  }
+
+  while ((int)*esp % 4 != 0) {
+    *esp -= 1;
+    char x = '\0';
+    memcpy(*esp, &x, 1);
+  }
+
+  int z = 0;
+  *esp -= sizeof(int);
+  memcpy(*esp, &z, sizeof(int));
+
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(int);
+    memcpy(*esp, &arg_address[i], sizeof(int));
+  }
+
+  *esp -= sizeof(int);
+  int *target_pointer = *esp + sizeof(int);
+  memcpy(*esp, &target_pointer, sizeof(int));
+
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+
+  *esp = *esp - sizeof(int);
+  memcpy(*esp, &z, sizeof(int));
+}
+
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
@@ -226,13 +265,25 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  char *token, *next;
+  token = palloc_get_page (0);
+  if (token == NULL) {
+    goto done;
+  }
+  strlcpy(token, file_name, PGSIZE);
+  token = strtok_r (token, " ", &next);
+
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (token);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
-      goto done; 
+      success = 0;
+      goto done;
     }
+  
+  t->executable_file = file;
+  file_deny_write(file);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -252,11 +303,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   for (i = 0; i < ehdr.e_phnum; i++) 
     {
       struct Elf32_Phdr phdr;
-
+ 
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
-
+ 
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
         goto done;
       file_ofs += sizeof phdr;
@@ -305,19 +356,19 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
+ 
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
-
+ 
+  separate_strings(file_name , esp);
+  palloc_free_page(token);
+ 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
-
   success = true;
-
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
   return success;
 }
 
