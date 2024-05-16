@@ -182,7 +182,8 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-
+  //achieve parent child communication
+  t->parent_thread=thread_current();
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -452,7 +453,6 @@ static void
 init_thread (struct thread *t, const char *name, int priority)
 {
   enum intr_level old_level;
-
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
@@ -464,8 +464,18 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  list_init(&t->open_file_list);
+  
+  sema_init(&t->communication_sema,0);
+  list_init(&t->opened_files);
+  sema_init(&t->wait_sema,0);
+  list_init(&t->opened_files);
+  list_init(&t->children_list);
 
+  t->parent_thread = running_thread();
+  t->fd_last = 2;
+  t->child_status = -2;
+
+  
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

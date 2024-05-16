@@ -1,6 +1,7 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-
+#include "threads/synch.h"
+#include "filesys/file.h"
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -98,8 +99,18 @@ struct thread
 
 
     //for project 2
-    struct list open_file_list;          // list of opened files
+          // list of opened files
     int fd_last;
+    struct list opened_files;       
+    struct list children_list;	
+      
+    int child_status;
+    struct file* ex_file;
+    bool child_success;
+    struct semaphore wait_sema;
+    struct semaphore communication_sema;
+    struct thread* parent_thread; 
+    struct list_elem child_elem;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 

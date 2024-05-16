@@ -20,31 +20,61 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+void separate_strings(char *file_name, void **esp);
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+/* Close open files associated with the current process */
+
+
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+  char* fn_copy;
+  char*arg;
   tid_t tid;
 
-  /* Make a copy of FILE_NAME.
+  
+  
+  arg=malloc(strlen(file_name)+1);
+  // ensuring it does not exceed the size of the buffer
+  strlcpy(arg, file_name , strlen(file_name)+1) ; 
+//error handling if file is corrupted
+ /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  if (fn_copy == NULL) {
+    palloc_free_page(fn_copy);
+
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  }
+  strlcpy (fn_copy, file_name, PGSIZE); 
+
+  /* Extract the exec_name from the file name */ 
+  char* tokenptr ;
+  arg= strtok_r(arg, " " , &tokenptr ) ; 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  //name of the thread is arg ,fn_copy is passed to start_process
+  tid = thread_create (arg, PRI_DEFAULT, start_process, fn_copy);
+  free(arg);
+  
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  return tid;
-}
+  {
+    palloc_free_page(fn_copy);
+    return TID_ERROR;
+  }
+//wait until child is created
+  sema_down(&thread_current()->communication_sema);
 
+  if (!thread_current()->child_success) 
+  {
+    return TID_ERROR;
+  }
+
+  return tid;
+} 
 /* A thread function that loads a user process and starts it
    running. */
 static void
@@ -59,12 +89,28 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+ palloc_free_page (file_name);
+ if (!success) 
+  {
+    sema_up(&thread_current()->parent_thread->communication_sema);
+     return TID_ERROR;
+    
+  }
+       //child created successfully
+    thread_current()->parent_thread->child_success = true;
+    //push child into parent list
+    list_push_back(&thread_current()->parent_thread->children_list,&thread_current()->child_elem);
+     //wake up parent
+    sema_up(&thread_current()->parent_thread->communication_sema);
+    //child wait
+    sema_down(&thread_current()->communication_sema);
+    
+ 
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -88,20 +134,51 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while (true)
-  {
-    
-  }
-  
+
   return -1;
 }
 
 /* Free the current process's resources. */
+/* Close open files associated with the current process */
+void close_open_files(struct thread *cur) {
+  while (!list_empty(&cur->opened_files)) {
+    struct open_file* opened_file = list_entry(list_pop_back(&cur->opened_files), struct open_file, elem);
+    file_close(opened_file->ptr);
+    palloc_free_page(opened_file);
+  }
+}
+
+/* Handle child processes associated with the current process */
+void handle_child_processes(struct thread *cur) {
+  while (!list_empty(&cur->children_list)) {
+    struct thread* child = list_entry(list_pop_back(&cur->children_list), struct thread, child_elem);
+    child->parent_thread = NULL;
+    sema_up(&child->communication_sema);
+  }
+}
+
+/* Close the executable file associated with the current process */
+void close_executable_file(struct thread *cur) {
+  if (cur->ex_file != NULL) {
+    file_allow_write(cur->ex_file);
+    file_close(cur->ex_file);
+  }
+}
+
+/* Signal the parent thread associated with the current process */
+void signal_parent_thread(struct thread *cur) {
+  if (cur->parent_thread != NULL)
+    sema_up(&cur->parent_thread->wait_sema);
+}
 void
 process_exit (void)
 {
-  struct thread *cur = thread_current ();
+  struct thread *cur = thread_current();
   uint32_t *pd;
+  close_open_files(cur);
+  handle_child_processes(cur);
+  close_executable_file(cur);
+  signal_parent_thread(cur);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -205,15 +282,14 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-
 void separate_strings(char *file_name, void **esp) {
   char *token = file_name;
-  char *next;
+  char *t_ptr;
   int argc = 0;
   int arg_address[24];
 
-  for (token = strtok_r(file_name, " ", &next); token != NULL;
-       token = strtok_r(NULL, " ", &next)) {
+  for (token = strtok_r(file_name, " ", &t_ptr); token != NULL;
+       token = strtok_r(NULL, " ", &t_ptr)) {
     *esp -= (strlen(token) + 1);
     memcpy(*esp, token, strlen(token) + 1);
     arg_address[argc++] = (int) *esp;
@@ -245,6 +321,7 @@ void separate_strings(char *file_name, void **esp) {
   memcpy(*esp, &z, sizeof(int));
 }
 
+
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
@@ -265,14 +342,14 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char *token, *next;
+  char *token, *t_ptr;
   token = palloc_get_page (0);
   if (token == NULL) {
     goto done;
   }
   strlcpy(token, file_name, PGSIZE);
-  token = strtok_r (token, " ", &next);
-
+  token = strtok_r (token, " ", &t_ptr);
+ 
   /* Open executable file. */
   file = filesys_open (token);
   if (file == NULL) 
@@ -282,7 +359,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done;
     }
   
-  t->executable_file = file;
+  t->ex_file = file;
   file_deny_write(file);
 
   /* Read and verify executable header. */
@@ -520,3 +597,4 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+

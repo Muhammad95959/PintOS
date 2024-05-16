@@ -33,15 +33,6 @@ syscall_init (void)
   lock_init(&files_sys_lock);
 }
 
-void 
-validate_ptr(const void* f)
-{
-  if (f == NULL|| !is_user_vaddr(f) || pagedir_get_page(thread_current()->pagedir, f) == NULL) 
-  {
-    system_exit(-1);
-  }
-}
-
 static void
 syscall_handler (struct intr_frame *f) 
 { 
@@ -58,7 +49,17 @@ syscall_handler (struct intr_frame *f)
     break;
 
   case SYS_EXEC:
-    //exec_wrapper(f);
+      //ensure memory address of the pointer is valid
+  validate_void_ptr(f->esp+4);
+  //retrieve the second argument of the system call and cast it 
+  int* arg_ptr = (int*)f->esp + 1;
+  int arg_value = *arg_ptr;
+  char* the_arg = (char*)arg_value;
+  if (the_arg == NULL) sys_exit(-1);
+  lock_acquire(&files_sys_lock);
+  //execute program and return 
+  f->eax = process_execute(the_arg);
+  lock_release(&files_sys_lock);
     break;
 
   case SYS_WAIT:
@@ -106,6 +107,15 @@ syscall_handler (struct intr_frame *f)
     break;
   }
 
+}
+
+void 
+validate_ptr(const void* pt)
+{
+  if (pt == NULL || !is_user_vaddr(pt) || pagedir_get_page(thread_current()->pagedir, pt) == NULL) 
+  {
+    system_exit(-1);
+  }
 }
 
 void
