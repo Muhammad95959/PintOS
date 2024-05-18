@@ -50,12 +50,12 @@ syscall_handler (struct intr_frame *f)
 
   case SYS_EXEC:
       //ensure memory address of the pointer is valid
-  validate_void_ptr(f->esp+4);
+  validate_ptr(f->esp+4);
   //retrieve the second argument of the system call and cast it 
   int* arg_ptr = (int*)f->esp + 1;
   int arg_value = *arg_ptr;
   char* the_arg = (char*)arg_value;
-  if (the_arg == NULL) sys_exit(-1);
+  if (the_arg == NULL) system_exit(-1);
   lock_acquire(&files_sys_lock);
   //execute program and return 
   f->eax = process_execute(the_arg);
@@ -192,9 +192,9 @@ open_sys_call(struct intr_frame *f)
   {
     return -1;
   }
-  open->file_desc = ++thread_current()->fd_last;
-  list_push_back(&thread_current()->opened_files_list,&open->elem);
-  return open->file_desc;
+  open->fd = ++thread_current()->fd_last;
+  list_push_back(&thread_current()->opened_files,&open->elem);
+  return open->fd;
 
 }
 
@@ -356,11 +356,11 @@ close_sys_call(struct intr_frame *f)
 struct open_file* get_file(int fd){
     struct thread* t = thread_current();
     struct file* my_file = NULL;
-    for (struct list_elem* e = list_begin (&t->opened_files_list); e != list_end (&t->opened_files_list);
+    for (struct list_elem* e = list_begin (&t->opened_files); e != list_end (&t->opened_files);
     e = list_next (e))
     {
       struct open_file* opened_file = list_entry (e, struct open_file, elem);
-      if (opened_file->file_desc == fd)
+      if (opened_file->fd == fd)
       {
         return opened_file;
       }
