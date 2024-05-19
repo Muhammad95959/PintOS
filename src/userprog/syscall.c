@@ -14,6 +14,7 @@ struct open_file* get_file(int fd);
 
 
 void exit_sys_call(struct intr_frame *f);
+void wait_sys_call(struct intr_frame *f);
 void create_sys_call(struct intr_frame *f);
 void remove_sys_call(struct intr_frame *f);
 int open_sys_call(struct intr_frame *f);
@@ -63,7 +64,7 @@ syscall_handler (struct intr_frame *f)
     break;
 
   case SYS_WAIT:
-    //wait_wrapper(f);
+    wait_sys_call(f);
     break;
 
   case SYS_CREATE:
@@ -135,6 +136,14 @@ exit_sys_call(struct intr_frame *f)
   system_exit(status);
 }
 
+void
+wait_sys_call(struct intr_frame *f)
+{
+  validate_ptr(f->esp+4);
+  int tid = *((int*)f->esp + 1);
+
+  f->eax = process_wait(tid);
+}
 
 void
 create_sys_call(struct intr_frame *f)
