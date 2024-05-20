@@ -296,45 +296,42 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
-void separate_strings(char *file_name, void **esp) {
-  char *token = file_name;
-  char *t_ptr;
+
+void parse_string(char *file_name, void **esp) {
+  char *token, *save_ptr;
   int argc = 0;
   int arg_address[24];
 
-  for (token = strtok_r(file_name, " ", &t_ptr); token != NULL;
-       token = strtok_r(NULL, " ", &t_ptr)) {
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;
+       token = strtok_r(NULL, " ", &save_ptr)) {
     *esp -= (strlen(token) + 1);
     memcpy(*esp, token, strlen(token) + 1);
-    arg_address[argc++] = (int) *esp;
+    arg_address[argc++] = (int)*esp;
   }
 
-  while ((int)*esp % 4 != 0) {
+  while ((uintptr_t)*esp % 4 != 0) {
     *esp -= 1;
-    char x = '\0';
-    memcpy(*esp, &x, 1);
+    *(char *)esp = '\0';
   }
 
-  int z = 0;
-  *esp -= sizeof(int);
-  memcpy(*esp, &z, sizeof(int));
+  *esp -= sizeof(int); // sizeof(int) = 4 bytes
+  memset(*esp, 0, sizeof(int));
 
   for (int i = argc - 1; i >= 0; i--) {
     *esp -= sizeof(int);
     memcpy(*esp, &arg_address[i], sizeof(int));
   }
 
+  int *temp = (int *)(*esp);
   *esp -= sizeof(int);
-  int *target_pointer = *esp + sizeof(int);
-  memcpy(*esp, &target_pointer, sizeof(int));
+  memcpy(*esp, &temp, sizeof(int));
 
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
 
-  *esp = *esp - sizeof(int);
-  memcpy(*esp, &z, sizeof(int));
+  *esp -= sizeof(int);
+  memset(*esp, 0, sizeof(int));
 }
-
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -356,13 +353,13 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char *token, *t_ptr;
+  char *token, *save_ptr;
   token = palloc_get_page (0);
   if (token == NULL) {
     goto done;
   }
   strlcpy(token, file_name, PGSIZE);
-  token = strtok_r (token, " ", &t_ptr);
+  token = strtok_r (token, " ", &save_ptr);
  
   /* Open executable file. */
   file = filesys_open (token);
@@ -452,7 +449,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp))
     goto done;
  
-  separate_strings(file_name , esp);
+  parse_string(file_name , esp);
   palloc_free_page(token);
  
   /* Start address. */
